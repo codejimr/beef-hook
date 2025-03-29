@@ -19,7 +19,7 @@
             };
 
             // Enviar los datos a Google Apps Script
-            fetch('https://script.google.com/macros/s/AKfycbwX5jW93ffmUvAX9o4TWK9RXULSPN64XZIQ-FhnSa54vCdHpd5IAgxOblam61YocgCt/exec', {
+            fetch('https://script.google.com/macros/s/AKfycbxscHEysPFVzELrp5YqmTvRpvwZlbJ6L1FWWisoN4ZlGMxj91Rjet7FraqDIYBw40PT/exec', {
                 method: 'POST',
                 mode: 'no-cors',
                 headers: { 'Content-Type': 'application/json' },
