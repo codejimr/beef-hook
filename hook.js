@@ -1,3 +1,1 @@
-(function() {
-   alert('hola');
-})();
+alert('xxxx');
