@@ -1,6 +1,6 @@
 // Configuración Firebase (usa tu URL)
 const FIREBASE_CONFIG = {
-  databaseURL: "https://bdblindxss-default-rtdb.firebaseio.com"
+  databaseURL: "https://bdbeef-fb420-default-rtdb.firebaseio.com"
 };
 
 // Inicialización
